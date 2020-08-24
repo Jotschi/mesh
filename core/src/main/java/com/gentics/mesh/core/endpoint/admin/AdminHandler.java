@@ -151,19 +151,12 @@ public class AdminHandler extends AbstractHandler {
 		String dir = config.getStorageOptions().getDirectory();
 		File backupDir = new File(options.getStorageOptions().getBackupDirectory());
 		boolean inMemory = dir == null;
+		boolean isClustered = config.getClusterOptions() != null && config.getClusterOptions().isEnabled();
 
-		if (config.getClusterOptions() != null && config.getClusterOptions().isEnabled()) {
-			error(SERVICE_UNAVAILABLE, "restore_error_in_cluster_mode");
-		}
-		if (config.getClusterOptions().isEnabled()) {
-			throw error(SERVICE_UNAVAILABLE, "restore_error_in_cluster_mode");
-		}
-		if (config.getStorageOptions().getStartServer()) {
-			throw error(SERVICE_UNAVAILABLE, "restore_error_in_server_mode");
-		}
 		if (inMemory) {
 			throw error(SERVICE_UNAVAILABLE, "restore_error_not_supported_in_memory_mode");
 		}
+
 		if (!backupDir.exists()) {
 			throw error(INTERNAL_SERVER_ERROR, "error_backup", backupDir.getAbsolutePath());
 		}
@@ -181,22 +174,29 @@ public class AdminHandler extends AbstractHandler {
 			throw error(INTERNAL_SERVER_ERROR, "error_backup", backupDir.getAbsolutePath());
 		}
 		MeshStatus oldStatus = mesh.getStatus();
+		log.debug("Storing old mesh status: " + oldStatus);
 		Completable.fromAction(() -> {
 			mesh.setStatus(MeshStatus.RESTORE);
 			vertx.eventBus().publish(GRAPH_RESTORE_START.address, null);
-			db.stop();
+			if(!isClustered) {
+				db.stop();
+			}
 			db.restoreGraph(latestFile.getAbsolutePath());
-			db.setupConnectionPool();
+			if(!isClustered) {
+				db.setupConnectionPool();
+			}
 			boot.globalCacheClear();
 			boot.clearReferences();
 			routerStorage.root().apiRouter().projectsRouter().getProjectRouters().clear();
 		}).andThen(db.asyncTx(() -> {
 			// Update the routes by loading the projects
 			initProjects();
+			mesh.setStatus(oldStatus);
+			vertx.eventBus().publish(GRAPH_RESTORE_FINISHED.address, null);
 			return Single.just(message(ac, "restore_finished"));
 		})).doFinally(() -> {
 			mesh.setStatus(oldStatus);
-			vertx.eventBus().publish(GRAPH_RESTORE_FINISHED.address, null);
+			log.debug("Setting old status");
 		}).subscribe(model -> ac.send(model, OK), ac::fail);
 	}
 

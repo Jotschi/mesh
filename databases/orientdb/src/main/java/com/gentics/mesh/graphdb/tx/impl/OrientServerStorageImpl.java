@@ -1,7 +1,5 @@
 package com.gentics.mesh.graphdb.tx.impl;
 
-import java.io.IOException;
-
 import org.apache.commons.lang3.NotImplementedException;
 
 import com.gentics.mesh.etc.config.MeshOptions;
@@ -15,10 +13,15 @@ import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientGraphFactory;
 import com.tinkerpop.blueprints.impls.orient.OrientGraphNoTx;
 
+import io.vertx.core.logging.Logger;
+import io.vertx.core.logging.LoggerFactory;
+
 /**
  * Storage implementation which utilizes the server context to access the database.
  */
 public class OrientServerStorageImpl extends AbstractOrientStorage {
+
+	private static final Logger log = LoggerFactory.getLogger(OrientServerStorageImpl.class);
 
 	private OrientDB context;
 
@@ -76,11 +79,6 @@ public class OrientServerStorageImpl extends AbstractOrientStorage {
 
 	@Override
 	public void exportGraph(String outputDirectory) {
-		throw new NotImplementedException("Not supported in server mode");
-	}
-
-	@Override
-	public void restore(String backupFile) throws IOException {
 		throw new NotImplementedException("Not supported in server mode");
 	}
 
